@@ -1,18 +1,32 @@
 # templatize-project
 
-`templatize_project.py` converts an Android Studio project into a
-[Code On the Go](https://codeonthego.app/) (`.cgt`) template by applying the
-substitutions described in "Template Creation and Installation":
+`templatize_project.py` packages an Android Studio project into a
+[Code On the Go](https://codeonthego.app/) (`.cgt`) template bundle by
+applying the substitutions described in "Template Creation and
+Installation". The original project directory is never modified — the
+script copies it into a new bundle directory and templatizes the copy.
 
-- Replaces concrete values (Gradle/AGP/Kotlin versions, package name, app
-  name, SDK levels, Java compatibility levels) with Pebble tokens
-  (`${{ TOKEN }}`).
-- Saves each modified file with a `.peb` suffix and removes the original.
-- Removes `build/` directories.
-- Deletes common keystore files (`*.jks`, `*.keystore`, `*.p12`) and flags
-  other files that may contain machine-specific or personal information
-  (`local.properties`, `google-services.json`, `key.properties`,
-  `GoogleService-Info.plist`) for manual review.
+For each run, it:
+
+1. Creates a new output directory (default: `<project-dir>-cgt`, next to the
+   project).
+2. Copies the project into that directory as a subdirectory (default name:
+   the project directory's name), skipping `.git`.
+3. Templatizes the copy:
+   - Replaces concrete values (Gradle/AGP/Kotlin versions, package name, app
+     name, SDK levels, Java compatibility levels) with Pebble tokens
+     (`${{ TOKEN }}`).
+   - Saves each modified file with a `.peb` suffix and removes the original.
+   - Removes `build/` directories.
+   - Deletes common keystore files (`*.jks`, `*.keystore`, `*.p12`) and flags
+     other files that may contain machine-specific or personal information
+     (`local.properties`, `google-services.json`, `key.properties`,
+     `GoogleService-Info.plist`) for manual review.
+4. Writes a `templates.json` at the top of the output directory, listing the
+   template subdirectory.
+5. Adds a `template/` directory inside the copied project containing
+   `template.json` (the template's parameter/metadata schema) and a
+   placeholder `icon.png` (replace with a real icon before shipping).
 
 Both Kotlin DSL (`build.gradle.kts`) and Groovy DSL (`build.gradle`) projects
 are supported.
@@ -20,12 +34,17 @@ are supported.
 ## Usage
 
 ```
-python templatize_project.py <path-to-android-project> [--module app] [--dry-run] [--skip-cleanup]
+python templatize_project.py <path-to-android-project> [--module app] [--dry-run] [--skip-cleanup] [--output-dir DIR] [--template-name NAME]
 ```
 
 - `--module` — app module directory name (default: `app`)
-- `--dry-run` — show what would change without writing or deleting anything
+- `--dry-run` — preview changes against the original project directory
+  without creating the output directory or writing/deleting anything
 - `--skip-cleanup` — skip `build/` and keystore removal
+- `--output-dir` — directory to create for the `.cgt` bundle (default:
+  `<project-dir>-cgt`)
+- `--template-name` — name of the template subdirectory / `path` entry in
+  `templates.json` (default: the project directory's name)
 
 ## Files processed
 
@@ -49,10 +68,11 @@ immediately followed by one, so the quote itself isn't eaten.
 
 ## Next steps
 
-After running the script, inspect each generated `.peb` file to confirm the
-substitutions and spacing look right, then package the directory into a
-`.cgt` file:
+After running the script, inspect each generated `.peb` file in the output
+directory to confirm the substitutions and spacing look right, replace the
+placeholder `icon.png`, then package the output directory into a `.cgt`
+file:
 
 ```
-zip -r -9 -D -X <destination>/<filename>.cgt *
+cd <output-dir> && zip -r -9 -D -X <destination>/<filename>.cgt *
 ```

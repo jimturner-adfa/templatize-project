@@ -25,6 +25,8 @@ Usage:
 """
 
 import argparse
+import base64
+import json
 import re
 import shutil
 import sys
@@ -439,12 +441,133 @@ def flag_personal_info_files(project_dir: Path, report: Report):
             report.flag(f"{f} may contain machine-specific or personal information; review/delete manually")
 
 
+def run_pipeline(project_dir: Path, module: str, dry_run: bool, skip_cleanup: bool, report: Report):
+    print(f"\n=== Templatizing {project_dir} ===\n")
+    if dry_run:
+        print("(dry run: no files will be modified)\n")
+
+    print("-- gradle/wrapper/gradle-wrapper.properties --")
+    process_gradle_wrapper(project_dir, report, dry_run)
+
+    print("\n-- settings.gradle.kts --")
+    process_settings_gradle(project_dir, report, dry_run)
+
+    print("\n-- build.gradle.kts / build.gradle (root) --")
+    process_root_build_gradle(project_dir, report, dry_run)
+
+    print(f"\n-- {module}/build.gradle.kts / build.gradle --")
+    process_app_build_gradle(project_dir, module, report, dry_run)
+
+    print(f"\n-- {module}/src/main/res/values/strings.xml --")
+    process_strings_xml(project_dir, module, report, dry_run)
+
+    print(f"\n-- {module}/src/main/java/MainActivity.kt --")
+    process_main_activity_kt(project_dir, module, report, dry_run)
+
+    print(f"\n-- {module}/src/main/java/MainActivity.java --")
+    process_main_activity_java(project_dir, module, report, dry_run)
+
+    if not skip_cleanup:
+        print("\n-- Removing build/ directories --")
+        cleanup_build_dirs(project_dir, report, dry_run)
+
+        print("\n-- Removing keystore files --")
+        cleanup_keystores(project_dir, report, dry_run)
+
+        print("\n-- Flagging files that may contain personal information --")
+        flag_personal_info_files(project_dir, report)
+
+
+# A minimal valid 1x1 transparent PNG, used as a stand-in template icon until
+# a real one is supplied.
+PLACEHOLDER_ICON_PNG_B64 = (
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YA"
+    "AAAASUVORK5CYII="
+)
+
+
+def build_template_json() -> dict:
+    return {
+        "name": "Ext Activity",
+        "description": "Creates a new test activity",
+        "version": "0.1",
+        "parameters": {
+            "required": {
+                "appName": {"identifier": "APP_NAME"},
+                "packageName": {"identifier": "PACKAGE_NAME"},
+                "saveLocation": {"identifier": "SAVE_LOCATION"},
+            },
+            "optional": {
+                "language": {"identifier": "LANGUAGE"},
+                "minsdk": {"identifier": "MIN_SDK"},
+            },
+            "system": {
+                "agpVersion": {"identifier": "AGP_VERSION"},
+                "kotlinVersion": {"identifier": "KOTLIN_VERSION"},
+                "gradleVersion": {"identifier": "GRADLE_VERSION"},
+                "compileSdk": {"identifier": "COMPILE_SDK"},
+                "targetSdk": {"identifier": "TARGET_SDK"},
+                "javaSourceCompat": {"identifier": "JAVA_SOURCE_COMPAT"},
+                "javaTargetCompat": {"identifier": "JAVA_TARGET_COMPAT"},
+                "javaTarget": {"identifier": "JAVA_TARGET"},
+            },
+        },
+    }
+
+
+def create_template_bundle(project_dir: Path, module: str, output_dir: Path,
+                            template_name: str, skip_cleanup: bool, dry_run: bool,
+                            report: Report):
+    dest = output_dir / template_name
+
+    if dry_run:
+        print(f"\n=== Dry run: would create {output_dir} ===")
+        print(f"  would copy {project_dir} -> {dest}")
+        run_pipeline(project_dir, module, dry_run, skip_cleanup, report)
+        print(f"\n  would write {output_dir / 'templates.json'}")
+        print(f"  would write {dest / 'template' / 'template.json'}")
+        print(f"  would write {dest / 'template' / 'icon.png'}")
+        return
+
+    if dest.exists():
+        print(f"Error: {dest} already exists", file=sys.stderr)
+        sys.exit(1)
+
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(project_dir, dest, ignore=shutil.ignore_patterns(".git"))
+    report.ok(f"{project_dir} -> {dest}")
+
+    run_pipeline(dest, module, dry_run, skip_cleanup, report)
+
+    templates_json = output_dir / "templates.json"
+    templates_json.write_text(
+        json.dumps({"templates": [{"path": template_name}]}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    report.ok(str(templates_json))
+
+    template_dir = dest / "template"
+    template_dir.mkdir(exist_ok=True)
+
+    template_json = template_dir / "template.json"
+    template_json.write_text(json.dumps(build_template_json(), indent=4) + "\n", encoding="utf-8")
+    report.ok(str(template_json))
+
+    icon_png = template_dir / "icon.png"
+    icon_png.write_bytes(base64.b64decode(PLACEHOLDER_ICON_PNG_B64))
+    report.ok(f"{icon_png} (placeholder icon, replace with a real one)")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("project_dir", type=Path, help="Path to the Android Studio project root")
     parser.add_argument("--module", default="app", help="App module directory name (default: app)")
     parser.add_argument("--dry-run", action="store_true", help="Show what would change without writing/deleting anything")
     parser.add_argument("--skip-cleanup", action="store_true", help="Skip build/ and keystore removal")
+    parser.add_argument("--output-dir", type=Path, default=None,
+                         help="Directory to create for the .cgt bundle (default: <project-dir>-cgt next to the project)")
+    parser.add_argument("--template-name", default=None,
+                         help="Name of the template subdirectory/'path' entry in templates.json (default: project directory name)")
     args = parser.parse_args()
 
     project_dir = args.project_dir.resolve()
@@ -452,42 +575,13 @@ def main():
         print(f"Error: {project_dir} is not a directory", file=sys.stderr)
         sys.exit(1)
 
+    output_dir = (args.output_dir or project_dir.parent / f"{project_dir.name}-cgt").resolve()
+    template_name = args.template_name or project_dir.name
+
     report = Report()
 
-    print(f"\n=== Templatizing {project_dir} ===\n")
-    if args.dry_run:
-        print("(dry run: no files will be modified)\n")
-
-    print("-- gradle/wrapper/gradle-wrapper.properties --")
-    process_gradle_wrapper(project_dir, report, args.dry_run)
-
-    print("\n-- settings.gradle.kts --")
-    process_settings_gradle(project_dir, report, args.dry_run)
-
-    print("\n-- build.gradle.kts / build.gradle (root) --")
-    process_root_build_gradle(project_dir, report, args.dry_run)
-
-    print(f"\n-- {args.module}/build.gradle.kts / build.gradle --")
-    process_app_build_gradle(project_dir, args.module, report, args.dry_run)
-
-    print(f"\n-- {args.module}/src/main/res/values/strings.xml --")
-    process_strings_xml(project_dir, args.module, report, args.dry_run)
-
-    print(f"\n-- {args.module}/src/main/java/MainActivity.kt --")
-    process_main_activity_kt(project_dir, args.module, report, args.dry_run)
-
-    print(f"\n-- {args.module}/src/main/java/MainActivity.java --")
-    process_main_activity_java(project_dir, args.module, report, args.dry_run)
-
-    if not args.skip_cleanup:
-        print("\n-- Removing build/ directories --")
-        cleanup_build_dirs(project_dir, report, args.dry_run)
-
-        print("\n-- Removing keystore files --")
-        cleanup_keystores(project_dir, report, args.dry_run)
-
-        print("\n-- Flagging files that may contain personal information --")
-        flag_personal_info_files(project_dir, report)
+    create_template_bundle(project_dir, args.module, output_dir, template_name,
+                            args.skip_cleanup, args.dry_run, report)
 
     print("\n=== Summary ===")
     print(f"  Modified:  {len(report.changed)}")
@@ -495,10 +589,10 @@ def main():
     print(f"  Removed:   {len(report.removed)}")
     print(f"  To review: {len(report.flagged)}")
     print(
-        "\nNext step: inspect each generated .peb file to confirm the Pebble "
-        "substitutions and spacing look right, then package the directory "
-        "into a .cgt file, e.g.:\n"
-        "  zip -r -9 -D -X <destination>/<filename>.cgt *\n"
+        "\nNext step: inspect the generated .peb files in "
+        f"{output_dir} to confirm the Pebble substitutions and spacing look "
+        "right, then package the directory into a .cgt file, e.g.:\n"
+        f"  cd {output_dir} && zip -r -9 -D -X <destination>/<filename>.cgt *\n"
     )
 
 
