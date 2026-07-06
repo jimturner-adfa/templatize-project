@@ -136,16 +136,21 @@ def process_gradle_wrapper(project_dir: Path, report: Report, dry_run: bool):
 def process_settings_gradle(project_dir: Path, report: Report, dry_run: bool):
     path = project_dir / "settings.gradle.kts"
     if not path.exists():
-        report.skip(f"{path} not found")
+        path = project_dir / "settings.gradle"
+    if not path.exists():
+        report.skip(f"{project_dir / 'settings.gradle.kts'} or settings.gradle not found")
         return
     text = path.read_text(encoding="utf-8")
     lines = text.splitlines(keepends=True)
     n = 0
     for i, line in enumerate(lines):
-        m = re.match(r'^([ \t]*rootProject\.name[ \t]*=[ \t]*")([^"]*)("[ \t]*)(\r?\n)?$', line)
+        m = re.match(
+            r'^([ \t]*rootProject\.name[ \t]*=[ \t]*)(["\'])([^"\']*)(\2[ \t]*)(\r?\n)?$', line
+        )
         if m:
-            newline = m.group(4) or ""
-            lines[i] = f'{m.group(1)}{token("APP_NAME")}"  {newline}'
+            quote = m.group(2)
+            newline = m.group(5) or ""
+            lines[i] = f'{m.group(1)}{quote}{token("APP_NAME")}{quote}  {newline}'
             n += 1
     if n == 0:
         report.skip(f"{path}: rootProject.name pattern not found, no changes made")
@@ -513,7 +518,7 @@ def run_pipeline(project_dir: Path, module: str, dry_run: bool, skip_cleanup: bo
     print("-- gradle/wrapper/gradle-wrapper.properties --")
     process_gradle_wrapper(project_dir, report, dry_run)
 
-    print("\n-- settings.gradle.kts --")
+    print("\n-- settings.gradle.kts / settings.gradle --")
     process_settings_gradle(project_dir, report, dry_run)
 
     print("\n-- build.gradle.kts / build.gradle (root) --")
