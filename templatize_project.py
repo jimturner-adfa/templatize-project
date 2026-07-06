@@ -523,7 +523,7 @@ def create_template_bundle(project_dir: Path, module: str, output_dir: Path,
     if dry_run:
         print(f"\n=== Dry run: would create {output_dir} ===")
         print(f"  would copy {project_dir} -> {dest}")
-        run_pipeline(project_dir, module, dry_run, skip_cleanup, report)
+        run_pipeline(dest, module, dry_run, skip_cleanup, report)
         print(f"\n  would write {output_dir / 'templates.json'}")
         print(f"  would write {dest / 'template' / 'template.json'}")
         print(f"  would write {dest / 'template' / 'icon.png'}")
