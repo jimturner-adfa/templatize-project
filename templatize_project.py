@@ -325,7 +325,7 @@ def process_app_build_gradle(project_dir: Path, module: str, report: Report, dry
             r'(jvmTarget\s*=\s*")([^"]+)(")',
             r"(jvmTarget\s*=\s*')([^']+)(')",
         ],
-        "JAVA_TARGET_COMPAT",
+        "JAVA_TARGET",
         space_after_suffix=True,
     )
     total += n
@@ -524,10 +524,58 @@ def run_pipeline(project_dir: Path, module: str, dry_run: bool, skip_cleanup: bo
         flag_personal_info_files(project_dir, report)
 
 
-# A minimal valid 1x1 transparent PNG, used as a stand-in template icon until
-# a real one is supplied.
-PLACEHOLDER_ICON_PNG_B64 = (
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YA"
+# Generic template thumbnail (phone mockup), used as a stand-in until a
+# project-specific one is supplied.
+THUMB_PNG_B64 = (
+    "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"
     "AAAASUVORK5CYII="
 )
 
@@ -547,17 +595,17 @@ def build_template_json() -> dict:
                 "language": {"identifier": "LANGUAGE"},
                 "minsdk": {"identifier": "MIN_SDK"},
             },
-            "system": {
-                "agpVersion": {"identifier": "AGP_VERSION"},
-                "kotlinVersion": {"identifier": "KOTLIN_VERSION"},
-                "gradleVersion": {"identifier": "GRADLE_VERSION"},
-                "compileSdk": {"identifier": "COMPILE_SDK"},
-                "targetSdk": {"identifier": "TARGET_SDK"},
-                "javaSourceCompat": {"identifier": "JAVA_SOURCE_COMPAT"},
-                "javaTargetCompat": {"identifier": "JAVA_TARGET_COMPAT"},
-                "javaTarget": {"identifier": "JAVA_TARGET"},
-            },
         },
+        "system": {
+            "agpVersion": {"identifier": "AGP_VERSION"},
+            "kotlinVersion": {"identifier": "KOTLIN_VERSION"},
+            "gradleVersion": {"identifier": "GRADLE_VERSION"},
+            "compileSdk": {"identifier": "COMPILE_SDK"},
+            "targetSdk": {"identifier": "TARGET_SDK"},
+            "javaSourceCompat": {"identifier": "JAVA_SOURCE_COMPAT"},
+            "javaTargetCompat": {"identifier": "JAVA_TARGET_COMPAT"},
+            "javaTarget": {"identifier": "JAVA_TARGET"},
+        }
     }
 
 
@@ -587,7 +635,7 @@ def create_template_bundle(project_dir: Path, module: str, output_dir: Path,
 
         print(f"\n  would write {output_dir / 'templates.json'}")
         print(f"  would write {dest / 'template' / 'template.json'}")
-        print(f"  would write {dest / 'template' / 'icon.png'}")
+        print(f"  would write {dest / 'template' / 'thumb.png'}")
         return
 
     print("\n-- gradlew clean --")
@@ -617,9 +665,9 @@ def create_template_bundle(project_dir: Path, module: str, output_dir: Path,
     template_json.write_text(json.dumps(build_template_json(), indent=4) + "\n", encoding="utf-8")
     report.ok(str(template_json))
 
-    icon_png = template_dir / "icon.png"
-    icon_png.write_bytes(base64.b64decode(PLACEHOLDER_ICON_PNG_B64))
-    report.ok(f"{icon_png} (placeholder icon, replace with a real one)")
+    thumb_png = template_dir / "thumb.png"
+    thumb_png.write_bytes(base64.b64decode(THUMB_PNG_B64))
+    report.ok(f"{thumb_png} (generic thumbnail, replace with an app-specific one if desired)")
 
 
 def main():
