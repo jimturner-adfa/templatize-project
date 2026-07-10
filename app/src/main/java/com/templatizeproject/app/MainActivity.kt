@@ -118,13 +118,13 @@ fun ConverterScreen() {
             TopAppBar(title = { Text("Templatize Project") })
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .padding(16.dp)
-                .fillMaxSize()
-        ) {
-            if (!hasPermission) {
+        if (!hasPermission) {
+            Column(
+                modifier = Modifier
+                    .padding(padding)
+                    .padding(16.dp)
+                    .fillMaxSize()
+            ) {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
@@ -153,141 +153,160 @@ fun ConverterScreen() {
                         }
                     }
                 }
-                return@Column
             }
+            return@Scaffold
+        }
 
-            OutlinedTextField(
-                value = projectName,
-                onValueChange = { projectName = it },
-                label = { Text("Project name to convert") },
-                placeholder = { Text("MyApp") },
-                supportingText = { Text("Looked up under $PROJECTS_DIR") },
-                singleLine = true,
-                enabled = !isRunning,
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            OutlinedTextField(
-                value = templateName,
-                onValueChange = { templateName = it },
-                label = { Text("Template name (written into template.json)") },
-                placeholder = { Text("My Template") },
-                singleLine = true,
-                enabled = !isRunning,
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            OutlinedTextField(
-                value = moduleName,
-                onValueChange = { moduleName = it },
-                label = { Text("App module directory (default: app)") },
-                singleLine = true,
-                enabled = !isRunning,
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = dryRun, onCheckedChange = { dryRun = it }, enabled = !isRunning)
-                Text("Dry run (preview only, writes nothing)")
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = skipCleanup, onCheckedChange = { skipCleanup = it }, enabled = !isRunning)
-                Text("Skip build/ and keystore cleanup")
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(
-                    onClick = {
-                        errorMessage = null
-                        summary = null
-                        logLines.clear()
-                        val dir = File(PROJECTS_DIR, projectName.trim())
-                        val name = templateName.trim()
-                        if (projectName.isBlank() || !dir.isDirectory) {
-                            errorMessage = "\"$dir\" is not a directory that exists on this device."
-                            return@Button
-                        }
-                        if (name.isBlank()) {
-                            errorMessage = "Enter a template name to write into template.json."
-                            return@Button
-                        }
-                        isRunning = true
-                        scope.launch {
-                            try {
-                                val result = withContext(Dispatchers.IO) {
-                                    createTemplateBundle(
-                                        projectDir = dir,
-                                        module = moduleName.trim().ifBlank { "app" },
-                                        templateName = name,
-                                        skipCleanup = skipCleanup,
-                                        dryRun = dryRun,
-                                        onLine = { line ->
-                                            logLines.add(line)
-                                        },
-                                    )
-                                }
-                                summary = buildString {
-                                    append("Modified ${result.report.changed.size}, ")
-                                    append("skipped ${result.report.skipped.size}, ")
-                                    append("removed ${result.report.removed.size}, ")
-                                    append("${result.report.flagged.size} to review.\n")
-                                    append("Bundle: ${result.outputDir}")
-                                    if (result.cgtFile != null) append("\n.cgt file: ${result.cgtFile}")
-                                }
-                            } catch (e: Exception) {
-                                errorMessage = "Conversion failed: ${e.message}"
-                            } finally {
-                                isRunning = false
-                            }
-                        }
-                    },
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .padding(padding)
+                .padding(16.dp)
+                .fillMaxSize(),
+        ) {
+            item {
+                OutlinedTextField(
+                    value = projectName,
+                    onValueChange = { projectName = it },
+                    label = { Text("Project name to convert") },
+                    placeholder = { Text("MyApp") },
+                    supportingText = { Text("Looked up under $PROJECTS_DIR") },
+                    singleLine = true,
                     enabled = !isRunning,
-                ) {
-                    Text(if (dryRun) "Preview conversion" else "Convert to .cgt template")
-                }
-                if (isRunning) {
-                    CircularProgressIndicator(modifier = Modifier.padding(start = 4.dp))
-                }
-            }
-
-            errorMessage?.let {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
-            }
-
-            summary?.let {
-                Spacer(modifier = Modifier.height(12.dp))
-                Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-                ) {
-                    Text(it, modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium)
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                )
+            }
+            item { Spacer(modifier = Modifier.height(12.dp)) }
+            item {
+                OutlinedTextField(
+                    value = templateName,
+                    onValueChange = { templateName = it },
+                    label = { Text("Template name (written into template.json)") },
+                    placeholder = { Text("My Template") },
+                    singleLine = true,
+                    enabled = !isRunning,
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                )
+            }
+            item { Spacer(modifier = Modifier.height(12.dp)) }
+            item {
+                OutlinedTextField(
+                    value = moduleName,
+                    onValueChange = { moduleName = it },
+                    label = { Text("App module directory (default: app)") },
+                    singleLine = true,
+                    enabled = !isRunning,
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                )
+            }
+            item { Spacer(modifier = Modifier.height(8.dp)) }
+
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = dryRun, onCheckedChange = { dryRun = it }, enabled = !isRunning)
+                    Text("Dry run (preview only, writes nothing)")
+                }
+            }
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = skipCleanup, onCheckedChange = { skipCleanup = it }, enabled = !isRunning)
+                    Text("Skip build/ and keystore cleanup")
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-            Text("Log", style = MaterialTheme.typography.titleSmall)
-            Spacer(modifier = Modifier.height(4.dp))
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-            ) {
-                items(logLines) { line ->
-                    Text(
-                        text = line,
-                        fontFamily = FontFamily.Monospace,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(vertical = 1.dp),
-                    )
+            item { Spacer(modifier = Modifier.height(12.dp)) }
+
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(
+                        onClick = {
+                            errorMessage = null
+                            summary = null
+                            logLines.clear()
+                            val dir = File(PROJECTS_DIR, projectName.trim())
+                            val name = templateName.trim()
+                            if (projectName.isBlank() || !dir.isDirectory) {
+                                errorMessage = "\"$dir\" is not a directory that exists on this device."
+                                return@Button
+                            }
+                            if (name.isBlank()) {
+                                errorMessage = "Enter a template name to write into template.json."
+                                return@Button
+                            }
+                            isRunning = true
+                            scope.launch {
+                                try {
+                                    val result = withContext(Dispatchers.IO) {
+                                        createTemplateBundle(
+                                            projectDir = dir,
+                                            module = moduleName.trim().ifBlank { "app" },
+                                            templateName = name,
+                                            skipCleanup = skipCleanup,
+                                            dryRun = dryRun,
+                                            onLine = { line ->
+                                                logLines.add(line)
+                                            },
+                                        )
+                                    }
+                                    summary = buildString {
+                                        append("Modified ${result.report.changed.size}, ")
+                                        append("skipped ${result.report.skipped.size}, ")
+                                        append("removed ${result.report.removed.size}, ")
+                                        append("${result.report.flagged.size} to review.\n")
+                                        append("Bundle: ${result.outputDir}")
+                                        if (result.cgtFile != null) append("\n.cgt file: ${result.cgtFile}")
+                                    }
+                                } catch (e: Exception) {
+                                    errorMessage = "Conversion failed: ${e.message}"
+                                } finally {
+                                    isRunning = false
+                                }
+                            }
+                        },
+                        enabled = !isRunning,
+                    ) {
+                        Text(if (dryRun) "Preview conversion" else "Convert to .cgt template")
+                    }
+                    if (isRunning) {
+                        CircularProgressIndicator(modifier = Modifier.padding(start = 4.dp))
+                    }
                 }
+            }
+
+            errorMessage?.let { message ->
+                item {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+
+            summary?.let { summaryText ->
+                item {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                    ) {
+                        Text(summaryText, modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text("Log", style = MaterialTheme.typography.titleSmall)
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+            items(logLines) { line ->
+                Text(
+                    text = line,
+                    fontFamily = FontFamily.Monospace,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(vertical = 1.dp),
+                )
             }
         }
     }
