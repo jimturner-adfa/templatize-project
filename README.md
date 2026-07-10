@@ -17,9 +17,9 @@ desktop CLI.
 
 Launching the app shows a form with:
 
-- **Project name / path to convert** — the absolute path to the Android
-  Studio project on device storage (e.g.
-  `/storage/emulated/0/AndroidIDEProjects/MyApp`).
+- **Project name to convert** — the project's directory name under
+  `/sdcard/CodeOnTheGoProjects` (Code On the Go's fixed projects root), e.g.
+  `MyApp` for `/sdcard/CodeOnTheGoProjects/MyApp`.
 - **Template name** — written into the generated `template.json`'s `name`
   field, and used as the template subdirectory / `templates.json` `path`
   entry.

@@ -467,7 +467,7 @@ private fun flattenPackageDirectory(
 private fun cleanupBuildDirs(projectDir: File, report: Report, dryRun: Boolean) {
     val moduleRoots = mutableSetOf<File>()
     for (name in listOf("build.gradle.kts", "build.gradle", "build.gradle.kts.peb", "build.gradle.peb")) {
-        projectDir.walkTopDown().filter { it.isFile && it.name == name }.forEach { moduleRoots.add(it.parentFile) }
+        projectDir.walkTopDown().filter { it.isFile && it.name == name }.forEach { it.parentFile?.let(moduleRoots::add) }
     }
     moduleRoots.add(projectDir)
     for (mod in moduleRoots.sortedBy { it.path }) {

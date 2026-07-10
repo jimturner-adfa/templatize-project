@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -69,6 +68,9 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/** Code On the Go always keeps projects here; project names are directories under this root. */
+private const val PROJECTS_DIR = "/sdcard/CodeOnTheGoProjects"
+
 private fun hasStoragePermission(): Boolean =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
         Environment.isExternalStorageManager()
@@ -93,7 +95,7 @@ fun ConverterScreen() {
         hasPermission = hasStoragePermission()
     }
 
-    var projectPath by remember { mutableStateOf("") }
+    var projectName by remember { mutableStateOf("") }
     var templateName by remember { mutableStateOf("") }
     var moduleName by remember { mutableStateOf("app") }
     var dryRun by remember { mutableStateOf(false) }
@@ -155,10 +157,11 @@ fun ConverterScreen() {
             }
 
             OutlinedTextField(
-                value = projectPath,
-                onValueChange = { projectPath = it },
-                label = { Text("Project name / path to convert") },
-                placeholder = { Text("/storage/emulated/0/AndroidIDEProjects/MyApp") },
+                value = projectName,
+                onValueChange = { projectName = it },
+                label = { Text("Project name to convert") },
+                placeholder = { Text("MyApp") },
+                supportingText = { Text("Looked up under $PROJECTS_DIR") },
                 singleLine = true,
                 enabled = !isRunning,
                 modifier = Modifier.fillMaxWidth(),
@@ -204,10 +207,10 @@ fun ConverterScreen() {
                         errorMessage = null
                         summary = null
                         logLines.clear()
-                        val dir = File(projectPath.trim())
+                        val dir = File(PROJECTS_DIR, projectName.trim())
                         val name = templateName.trim()
-                        if (projectPath.isBlank() || !dir.isDirectory) {
-                            errorMessage = "\"$projectPath\" is not a directory that exists on this device."
+                        if (projectName.isBlank() || !dir.isDirectory) {
+                            errorMessage = "\"$dir\" is not a directory that exists on this device."
                             return@Button
                         }
                         if (name.isBlank()) {
