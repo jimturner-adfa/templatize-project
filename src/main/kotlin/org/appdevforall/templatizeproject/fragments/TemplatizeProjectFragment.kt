@@ -1,6 +1,5 @@
 package org.appdevforall.templatizeproject.fragments
 
-import android.app.AlertDialog
 import android.graphics.Color
 import android.os.Bundle
 import android.text.Editable
@@ -9,7 +8,6 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ImageButton
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.fragment.app.Fragment
@@ -17,8 +15,9 @@ import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.checkbox.MaterialCheckBox
 import com.google.android.material.textfield.TextInputEditText
-import com.google.android.material.textfield.TextInputLayout
 import com.itsaky.androidide.plugins.base.PluginFragmentHelper
+import com.itsaky.androidide.plugins.extensions.IProject
+import com.itsaky.androidide.plugins.services.IdeProjectService
 import com.itsaky.androidide.plugins.services.IdeTemplateService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -31,13 +30,10 @@ class TemplatizeProjectFragment : Fragment() {
 
     companion object {
         private const val PLUGIN_ID = "org.appdevforall.templatizeproject"
-        private const val PROJECTS_DIR = "/sdcard/CodeOnTheGoProjects"
         private const val TAG = "TemplatizeProject"
     }
 
-    private var projectNameLayout: TextInputLayout? = null
-    private var projectNameInput: TextInputEditText? = null
-    private var browseProjectsButton: ImageButton? = null
+    private var currentProjectText: TextView? = null
     private var templateNameInput: TextInputEditText? = null
     private var dryRunCheckbox: MaterialCheckBox? = null
     private var skipCleanupCheckbox: MaterialCheckBox? = null
@@ -65,9 +61,7 @@ class TemplatizeProjectFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        projectNameLayout = view.findViewById(R.id.projectNameLayout)
-        projectNameInput = view.findViewById(R.id.projectNameInput)
-        browseProjectsButton = view.findViewById(R.id.browseProjectsButton)
+        currentProjectText = view.findViewById(R.id.currentProjectText)
         templateNameInput = view.findViewById(R.id.templateNameInput)
         dryRunCheckbox = view.findViewById(R.id.dryRunCheckbox)
         skipCleanupCheckbox = view.findViewById(R.id.skipCleanupCheckbox)
@@ -78,7 +72,6 @@ class TemplatizeProjectFragment : Fragment() {
         installButton = view.findViewById(R.id.installButton)
 
         convertButton?.setOnClickListener { onConvertClicked() }
-        browseProjectsButton?.setOnClickListener { showProjectPicker() }
         installButton?.setOnClickListener { onInstallClicked() }
 
         val watcher = object : TextWatcher {
@@ -86,54 +79,48 @@ class TemplatizeProjectFragment : Fragment() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) = updateConvertButtonState()
         }
-        projectNameInput?.addTextChangedListener(watcher)
         templateNameInput?.addTextChangedListener(watcher)
+
+        refreshCurrentProject()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshCurrentProject()
+    }
+
+    private fun currentProject(): IProject? =
+        PluginFragmentHelper.getServiceRegistry(PLUGIN_ID)
+            ?.get(IdeProjectService::class.java)
+            ?.getCurrentProject()
+
+    private fun refreshCurrentProject() {
+        val project = currentProject()
+        currentProjectText?.text = project?.name ?: "No project open"
         updateConvertButtonState()
     }
 
     private fun updateConvertButtonState() {
-        val projectName = projectNameInput?.text?.toString()?.trim().orEmpty()
         val templateName = templateNameInput?.text?.toString()?.trim().orEmpty()
-        convertButton?.isEnabled = !isRunning && projectName.isNotEmpty() && templateName.isNotEmpty()
-    }
-
-    private fun showProjectPicker() {
-        val activity = activity ?: return
-        val projects = File(PROJECTS_DIR).listFiles { f -> f.isDirectory }
-            ?.map { it.name }
-            ?.sorted()
-            ?.toTypedArray()
-            ?: emptyArray()
-
-        if (projects.isEmpty()) {
-            showStatus("No projects found under $PROJECTS_DIR", isError = true)
-            return
-        }
-
-        AlertDialog.Builder(activity)
-            .setTitle("Select a project")
-            .setItems(projects) { _, which ->
-                projectNameInput?.setText(projects[which])
-                projectNameInput?.setSelection(projects[which].length)
-            }
-            .show()
+        convertButton?.isEnabled = !isRunning && currentProject() != null && templateName.isNotEmpty()
     }
 
     private fun onConvertClicked() {
-        val projectName = projectNameInput?.text?.toString()?.trim().orEmpty()
-        val templateName = templateNameInput?.text?.toString()?.trim().orEmpty()
-        val dryRun = dryRunCheckbox?.isChecked ?: false
-        val skipCleanup = skipCleanupCheckbox?.isChecked ?: false
-
-        val projectDir = File(PROJECTS_DIR, projectName)
-        if (projectName.isEmpty() || !projectDir.isDirectory) {
-            showStatus("\"$projectDir\" is not a directory that exists on this device.", isError = true)
+        val project = currentProject()
+        if (project == null) {
+            showStatus("No project is currently open.", isError = true)
             return
         }
+        val templateName = templateNameInput?.text?.toString()?.trim().orEmpty()
         if (templateName.isEmpty()) {
             showStatus("Enter a template name to write into template.json.", isError = true)
             return
         }
+        val dryRun = dryRunCheckbox?.isChecked ?: false
+        val skipCleanup = skipCleanupCheckbox?.isChecked ?: false
+        val moduleName = project.getModules().firstOrNull { it.name == "app" }?.name
+            ?: project.getModules().firstOrNull()?.name
+            ?: "app"
 
         setRunning(true)
         logText?.text = ""
@@ -145,8 +132,8 @@ class TemplatizeProjectFragment : Fragment() {
             try {
                 val result = withContext(Dispatchers.IO) {
                     createTemplateBundle(
-                        projectDir = projectDir,
-                        module = "app",
+                        projectDir = project.rootDir,
+                        module = moduleName,
                         templateName = templateName,
                         skipCleanup = skipCleanup,
                         dryRun = dryRun,
@@ -219,8 +206,6 @@ class TemplatizeProjectFragment : Fragment() {
     private fun setRunning(running: Boolean) {
         isRunning = running
         progressBar?.visibility = if (running) View.VISIBLE else View.GONE
-        projectNameInput?.isEnabled = !running
-        browseProjectsButton?.isEnabled = !running
         templateNameInput?.isEnabled = !running
         dryRunCheckbox?.isEnabled = !running
         skipCleanupCheckbox?.isEnabled = !running
@@ -229,9 +214,7 @@ class TemplatizeProjectFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
-        projectNameLayout = null
-        projectNameInput = null
-        browseProjectsButton = null
+        currentProjectText = null
         templateNameInput = null
         dryRunCheckbox = null
         skipCleanupCheckbox = null

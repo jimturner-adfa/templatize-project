@@ -18,9 +18,9 @@ plugin so it runs inside the IDE with no separate app to install.
 The plugin adds a **Templatize Project** item to the IDE's sidebar (under
 "tools"), which opens a tab with:
 
-- **Project name to convert** — the project's directory name under
-  `/sdcard/CodeOnTheGoProjects` (Code On the Go's fixed projects root), e.g.
-  `MyApp` for `/sdcard/CodeOnTheGoProjects/MyApp`.
+- **Project** — read-only, always the project currently open in the IDE
+  (via `IdeProjectService.getCurrentProject()`). There's nothing to type;
+  if no project is open, conversion is disabled until one is.
 - **Template name** — written into the generated `template.json`'s `name`
   field, and used as the template subdirectory / `templates.json` `path`
   entry.
@@ -28,13 +28,14 @@ The plugin adds a **Templatize Project** item to the IDE's sidebar (under
   writing or deleting anything.
 - **Skip cleanup** — skip `build/` and keystore removal.
 
-Tapping **Convert to .cgt template** runs the pipeline on a background
+**Convert to Template** stays disabled until a project is open and a
+template name is entered. Tapping it runs the pipeline on a background
 thread and streams a live log (mirroring the old CLI's `[OK]` / `[SKIP]` /
 `[REMOVED]` / `[REVIEW]` output), followed by a summary with the output
-paths. On a real (non-dry-run) conversion, it then asks **"Do you wish to
-install this template?"** — answering Yes registers the `.cgt` directly with
-the IDE via `IdeTemplateService`, so it shows up immediately in the New
-Project / New File template picker.
+paths. On a real (non-dry-run) conversion, an **Install Template** button
+then appears below the log — so you can review the log first — and tapping
+it registers the `.cgt` directly with the IDE via `IdeTemplateService`, so it
+shows up immediately in the New Project / New File template picker.
 
 ## What the conversion does
 

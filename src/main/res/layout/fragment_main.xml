@@ -11,43 +11,28 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <LinearLayout
+        <TextView
+            android:id="@+id/currentProjectLabel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="bottom">
+            android:text="Project"
+            android:textSize="12sp"
+            android:textColor="?android:attr/textColorSecondary" />
 
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/projectNameLayout"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                app:helperText="Looked up under /sdcard/CodeOnTheGoProjects">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/projectNameInput"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="Project name to convert"
-                    android:singleLine="true" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <ImageButton
-                android:id="@+id/browseProjectsButton"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_marginStart="4dp"
-                android:layout_marginBottom="4dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Browse projects"
-                android:src="@android:drawable/ic_menu_search" />
-        </LinearLayout>
+        <TextView
+            android:id="@+id/currentProjectText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="No project open"
+            android:textSize="16sp"
+            android:textStyle="bold" />
 
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/templateNameLayout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp">
+            android:layout_marginTop="16dp">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/templateNameInput"
