@@ -116,5 +116,13 @@
             android:textIsSelectable="true"
             android:textSize="12sp" />
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/installButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Install Template"
+            android:visibility="gone" />
+
     </LinearLayout>
 </ScrollView>

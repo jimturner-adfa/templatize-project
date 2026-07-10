@@ -45,8 +45,10 @@ class TemplatizeProjectFragment : Fragment() {
     private var progressBar: ProgressBar? = null
     private var statusText: TextView? = null
     private var logText: TextView? = null
+    private var installButton: MaterialButton? = null
 
     private var isRunning = false
+    private var pendingCgtFile: File? = null
 
     override fun onGetLayoutInflater(savedInstanceState: Bundle?): LayoutInflater {
         val inflater = super.onGetLayoutInflater(savedInstanceState)
@@ -73,9 +75,11 @@ class TemplatizeProjectFragment : Fragment() {
         progressBar = view.findViewById(R.id.progressBar)
         statusText = view.findViewById(R.id.statusText)
         logText = view.findViewById(R.id.logText)
+        installButton = view.findViewById(R.id.installButton)
 
         convertButton?.setOnClickListener { onConvertClicked() }
         browseProjectsButton?.setOnClickListener { showProjectPicker() }
+        installButton?.setOnClickListener { onInstallClicked() }
 
         val watcher = object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -134,6 +138,8 @@ class TemplatizeProjectFragment : Fragment() {
         setRunning(true)
         logText?.text = ""
         statusText?.visibility = View.GONE
+        pendingCgtFile = null
+        installButton?.visibility = View.GONE
 
         viewLifecycleOwner.lifecycleScope.launch {
             try {
@@ -160,7 +166,9 @@ class TemplatizeProjectFragment : Fragment() {
                 showStatus(summary, isError = false)
 
                 if (result.cgtFile != null) {
-                    promptInstall(result.cgtFile)
+                    pendingCgtFile = result.cgtFile
+                    installButton?.isEnabled = true
+                    installButton?.visibility = View.VISIBLE
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Conversion failed", e)
@@ -171,17 +179,9 @@ class TemplatizeProjectFragment : Fragment() {
         }
     }
 
-    private fun promptInstall(cgtFile: File) {
-        val activity = activity ?: return
-        AlertDialog.Builder(activity)
-            .setTitle("Install template?")
-            .setMessage("Do you wish to install this template?")
-            .setPositiveButton("Yes") { _, _ -> installTemplate(cgtFile) }
-            .setNegativeButton("No", null)
-            .show()
-    }
-
-    private fun installTemplate(cgtFile: File) {
+    private fun onInstallClicked() {
+        val cgtFile = pendingCgtFile ?: return
+        installButton?.isEnabled = false
         viewLifecycleOwner.lifecycleScope.launch {
             val installed = withContext(Dispatchers.IO) {
                 runCatching {
@@ -239,5 +239,6 @@ class TemplatizeProjectFragment : Fragment() {
         progressBar = null
         statusText = null
         logText = null
+        installButton = null
     }
 }
